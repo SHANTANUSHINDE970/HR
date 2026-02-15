@@ -3401,7 +3401,10 @@ with tab1:
                                 st.session_state.last_submission_hash = generate_submission_hash(form_data_for_check)
                                 st.session_state.submission_timestamp = datetime.now()
                                 
-                                if email_sent:
+                                                               if email_sent:
+                                    # Reset submission in progress flag
+                                    st.session_state.submission_in_progress = False
+                                    
                                     st.markdown('''
                                         <div class="success-message">
                                             <div style="font-size: 3rem; margin-bottom: 1rem;">✨</div>
@@ -3425,6 +3428,10 @@ with tab1:
                                     time.sleep(2)
                                     st.rerun()
                                 else:
+                                                               
+                                    # Reset submission in progress flag
+                                    st.session_state.submission_in_progress = False
+                                    
                                     # Show manual approval codes section
                                     st.session_state.cluster_codes = cluster_codes
                                     st.session_state.show_copy_section = True
@@ -3512,12 +3519,10 @@ with tab1:
                                     st.session_state.generated_codes.clear()
                                     # Set flag to reset form on next render
                                     st.session_state.reset_form_tab1 = True
-                                    
-                                    # Reset submission in progress
-                                    st.session_state.submission_in_progress = False
-                                    
                                     time.sleep(2)
                                     st.rerun()
+                                
+
                                     
                             except Exception as e:
                                 st.session_state.submission_in_progress = False
