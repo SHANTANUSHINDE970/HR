@@ -1154,6 +1154,8 @@ if 'generated_codes' not in st.session_state:
 # New session state for preventing double submission
 if 'submission_in_progress' not in st.session_state:
     st.session_state.submission_in_progress = False
+if 'submission_completed' not in st.session_state:
+    st.session_state.submission_completed = False
 if 'last_submission_hash' not in st.session_state:
     st.session_state.last_submission_hash = None
 if 'submission_timestamp' not in st.session_state:
@@ -2628,26 +2630,6 @@ def check_duplicate_submission(form_data):
     
     return False, ""
 
-# JavaScript for copying to clipboard
-copy_js = """
-<script>
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(function() {
-        var successElement = document.getElementById('copy-success');
-        if (successElement) {
-            successElement.style.display = 'block';
-            setTimeout(function() {
-                successElement.style.display = 'none';
-            }, 2000);
-        }
-    }, function(err) {
-        console.error('Could not copy text: ', err);
-    });
-}
-</script>
-"""
-
-st.markdown(copy_js, unsafe_allow_html=True)
 def generate_wfh_hash(form_data):
     """Generate a unique hash for WFH form data to detect duplicate submissions"""
     # Create a string of all form data
@@ -2887,6 +2869,8 @@ with tab1:
         }]
         st.session_state.cluster_codes = {}
         st.session_state.reset_form_tab1 = False
+        st.session_state.submission_in_progress = False
+        st.session_state.submission_completed = True
     
     # Three-column layout for basic info
     col1, col2, col3 = st.columns([1, 1, 1], gap="large")
@@ -3205,8 +3189,6 @@ with tab1:
         key="superior_select"
     )
     
-    
-    
     # Submit Button with Beautiful Design
     submit_col1, submit_col2, submit_col3 = st.columns([1, 2, 1])
     with submit_col2:
@@ -3227,6 +3209,7 @@ with tab1:
         if submit_button and not submit_button_disabled:
             # Set submission in progress
             st.session_state.submission_in_progress = True
+            st.session_state.submission_completed = False
             
             # Prepare form data for duplicate checking
             form_data_for_check = {
@@ -3314,7 +3297,7 @@ with tab1:
                                     # Prepare row data - EXACTLY MATCHING COLUMN HEADERS
                                     # Column order: Submission Date, Employee Code, Employee Name, Department, Type of Leave, No of Days, 
                                     # Purpose of Leave, From Date, To Date, Superior or Team leader Name, Superior or Team leader Email,
-                                    # Status, Approval Date, Approval Password, Cluster (Yes/No), Cluster leave Number, Employee email, Comments
+                                    # Status, Approval Date, Approval Password, Cluster (Yes/No), Cluster leave Number, Employee email
                                     row_data = [
                                         submission_date,                                   # 1. Submission Date
                                         employee_code.strip(),                            # 2. Employee Code
@@ -3332,22 +3315,21 @@ with tab1:
                                         cluster_codes[i],                                   # 14. Approval Password
                                         "Yes" if is_cluster else "No",                     # 15. Cluster (Yes/No)
                                         str(i+1) if is_cluster else "",                    # 16. Cluster leave Number
-                                        employee_email.strip(),                            # 17. Employee email
-                                
+                                        employee_email.strip()                             # 17. Employee email
                                     ]
                                     
                                     # Debug: Log the row data
                                     log_debug(f"Row data for period {i+1}: {row_data}")
                                     log_debug(f"Row data length: {len(row_data)}")
                                     
-                                    # Ensure we have exactly 18 columns (matching headers)
-                                    if len(row_data) != 18:
-                                        log_debug(f"Warning: Row data has {len(row_data)} columns, expected 18")
+                                    # Ensure we have exactly 17 columns (matching headers)
+                                    if len(row_data) != 17:
+                                        log_debug(f"Warning: Row data has {len(row_data)} columns, expected 17")
                                         # Pad with empty strings if needed
-                                        while len(row_data) < 18:
+                                        while len(row_data) < 17:
                                             row_data.append("")
                                         # Truncate if too long
-                                        row_data = row_data[:18]
+                                        row_data = row_data[:17]
                                     
                                     # Validate each field is a string
                                     for j, item in enumerate(row_data):
@@ -3401,10 +3383,11 @@ with tab1:
                                 st.session_state.last_submission_hash = generate_submission_hash(form_data_for_check)
                                 st.session_state.submission_timestamp = datetime.now()
                                 
-                                                               if email_sent:
-                                    # Reset submission in progress flag
-                                    st.session_state.submission_in_progress = False
-                                    
+                                # Reset submission in progress flag
+                                st.session_state.submission_in_progress = False
+                                st.session_state.submission_completed = True
+                                
+                                if email_sent:
                                     st.markdown('''
                                         <div class="success-message">
                                             <div style="font-size: 3rem; margin-bottom: 1rem;">✨</div>
@@ -3428,10 +3411,6 @@ with tab1:
                                     time.sleep(2)
                                     st.rerun()
                                 else:
-                                                               
-                                    # Reset submission in progress flag
-                                    st.session_state.submission_in_progress = False
-                                    
                                     # Show manual approval codes section
                                     st.session_state.cluster_codes = cluster_codes
                                     st.session_state.show_copy_section = True
@@ -3522,8 +3501,6 @@ with tab1:
                                     time.sleep(2)
                                     st.rerun()
                                 
-
-                                    
                             except Exception as e:
                                 st.session_state.submission_in_progress = False
                                 st.markdown(f'''
@@ -3591,6 +3568,7 @@ with tab2:
             'action': 'Select Decision'
         }
         st.session_state.reset_form_tab2 = False
+        st.session_state.submission_in_progress = False
     
     # Form Fields - ONLY APPROVAL CODE REQUIRED
     col1, col2 = st.columns([1, 1], gap="large")
@@ -3935,6 +3913,7 @@ with tab4:
             'approval_from': 'Select Approval'
         }
         st.session_state.reset_form_tab4 = False
+        st.session_state.submission_in_progress = False
     
     # Form Layout
     col1, col2 = st.columns([1, 1], gap="large")
@@ -4200,65 +4179,6 @@ with tab4:
                                     </div>
                                 </div>
                             ''', unsafe_allow_html=True)
-            
-            # Check date validity
-            if end_date < start_date:
-                validation_passed = False
-                error_messages.append("End date cannot be before start date")
-            
-            if not validation_passed:
-                st.session_state.submission_in_progress = False
-                error_html = "<div class='error-message'><div style='display: flex; align-items: center; justify-content: center;'><div style='font-size: 1.5rem; margin-right: 10px;'>⚠️</div><div><strong>Validation Error</strong><br>"
-                for error in error_messages:
-                    error_html += f"{error}<br>"
-                error_html += "</div></div></div>"
-                st.markdown(error_html, unsafe_allow_html=True)
-            else:
-                with st.spinner('Submitting your request...'):
-                    # Submit the request
-                    success, message = submit_wfh_request(
-                        employee_name, employee_code, request_type, 
-                        start_date, end_date, reason, approval_from
-                    )
-                    
-                    if success:
-                        st.session_state.submission_in_progress = False
-                        st.markdown(f'''
-                            <div class="success-message">
-                                <div style="font-size: 3rem; margin-bottom: 1rem;">✨</div>
-                                <div style="font-size: 1.5rem; font-weight: 600; margin-bottom: 10px; color: #166534;">
-                                    Request Submitted Successfully!
-                                </div>
-                                <div style="color: #155724; margin-bottom: 15px;">
-                                    Your {request_type.lower()} request has been submitted successfully.
-                                </div>
-                                <div style="font-size: 0.95rem; color: #0f5132; opacity: 0.9;">
-                                    Request Type: {request_type}<br>
-                                    Duration: {(end_date - start_date).days + 1} day(s)<br>
-                                    Approval From: {approval_from}
-                                </div>
-                            </div>
-                        ''', unsafe_allow_html=True)
-                        
-                        st.balloons()
-                        # Set flag to reset form on next render
-                        st.session_state.reset_form_tab4 = True
-                        time.sleep(2)
-                        st.rerun()
-                    else:
-                        st.session_state.submission_in_progress = False
-                        st.markdown(f'''
-                            <div class="error-message">
-                                <div style="display: flex; align-items: center; justify-content: center;">
-                                    <div style="font-size: 1.5rem; margin-right: 10px;">❌</div>
-                                    <div>
-                                        <strong>Submission Error</strong><br>
-                                        {message}<br>
-                                        Please try again or contact HR for assistance.
-                                    </div>
-                                </div>
-                            </div>
-                        ''', unsafe_allow_html=True)
 
 # Footer
 st.markdown("""
