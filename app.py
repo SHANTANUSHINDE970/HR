@@ -1158,6 +1158,10 @@ if 'last_submission_hash' not in st.session_state:
     st.session_state.last_submission_hash = None
 if 'submission_timestamp' not in st.session_state:
     st.session_state.submission_timestamp = None
+if 'last_wfh_submission_hash' not in st.session_state:
+    st.session_state.last_wfh_submission_hash = None
+if 'wfh_submission_timestamp' not in st.session_state:
+    st.session_state.wfh_submission_timestamp = None
 
 def add_debug_log(message, level="INFO"):
     """Add debug log message"""
@@ -1367,7 +1371,7 @@ def setup_google_sheets():
                         "Type of Leave", "No of Days", "Purpose of Leave", "From Date",
                         "To Date", "Superior or Team leader Name", "Superior or Team leader Email",
                         "Status", "Approval Date", "Approval Password", "Cluster (Yes/No)",
-                        "Cluster leave Number", "Employee email", "Comments"
+                        "Cluster leave Number", "Employee email"
                     ]
                     sheet.append_row(headers)
                     log_debug("Added headers to sheet")
@@ -2644,6 +2648,24 @@ function copyToClipboard(text) {
 """
 
 st.markdown(copy_js, unsafe_allow_html=True)
+def generate_wfh_hash(form_data):
+    """Generate a unique hash for WFH form data to detect duplicate submissions"""
+    # Create a string of all form data
+    data_string = f"{form_data['employee_name']}_{form_data['employee_code']}_{form_data['request_type']}_{form_data['start_date']}_{form_data['end_date']}_{form_data['reason']}_{datetime.now().strftime('%Y%m%d')}"
+    return hashlib.md5(data_string.encode()).hexdigest()
+
+def check_duplicate_wfh_submission(form_data):
+    """Check if the same WFH form data was submitted recently"""
+    current_hash = generate_wfh_hash(form_data)
+    
+    # Check if this hash matches the last submission within a short time window
+    if st.session_state.get('last_wfh_submission_hash') == current_hash:
+        if st.session_state.get('wfh_submission_timestamp'):
+            time_diff = (datetime.now() - st.session_state.wfh_submission_timestamp).total_seconds()
+            if time_diff < 30:  # Within 30 seconds
+                return True, "You have already submitted this WFH/Out of Office form. Please wait before submitting again."
+    
+    return False, ""
 
 # ============================================
 # SIDEBAR - EMAIL TESTING & CONFIGURATION
@@ -3183,28 +3205,7 @@ with tab1:
         key="superior_select"
     )
     
-    # Comments Section (for your reference only - not submitted to sheet)
-    st.markdown("""
-        <div style="margin-top: 1rem;">
-            <div style="display: flex; align-items: center; margin-bottom: 1rem;">
-                <div class="icon-badge" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">💬</div>
-                <div>
-                    <h3 style="margin: 0;">Comments</h3>
-                    <p style="margin: 5px 0 0 0; color: #718096; font-size: 0.95rem;">
-                        This is for your reference only and will not be saved to the sheet
-                    </p>
-                </div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
     
-    comments = st.text_area(
-        "Add comments (for your reference only)",
-        placeholder="Any additional notes or comments for your reference...",
-        height=80,
-        help="This field is for your reference only and will not be saved to the Google Sheet",
-        key="comments_textarea"
-    )
     
     # Submit Button with Beautiful Design
     submit_col1, submit_col2, submit_col3 = st.columns([1, 2, 1])
@@ -3332,7 +3333,7 @@ with tab1:
                                         "Yes" if is_cluster else "No",                     # 15. Cluster (Yes/No)
                                         str(i+1) if is_cluster else "",                    # 16. Cluster leave Number
                                         employee_email.strip(),                            # 17. Employee email
-                                        comments.strip() if comments else ""               # 18. Comments (for reference)
+                                
                                     ]
                                     
                                     # Debug: Log the row data
@@ -4097,14 +4098,103 @@ with tab4:
             # Set submission in progress
             st.session_state.submission_in_progress = True
             
-            # VALIDATION CHECKS
-            validation_passed = True
-            error_messages = []
+            # Prepare form data for duplicate checking
+            wfh_form_data = {
+                'employee_name': employee_name,
+                'employee_code': employee_code,
+                'request_type': request_type,
+                'start_date': start_date,
+                'end_date': end_date,
+                'reason': reason
+            }
             
-            # Check basic required fields
-            if not all([employee_name, employee_code, request_type != "Select Type", reason, approval_from != "Select Approval"]):
-                validation_passed = False
-                error_messages.append("Please complete all required fields")
+            # Check for duplicate submission
+            is_duplicate, duplicate_message = check_duplicate_wfh_submission(wfh_form_data)
+            if is_duplicate:
+                st.session_state.submission_in_progress = False
+                st.markdown(f'''
+                    <div class="error-message">
+                        <div style="display: flex; align-items: center; justify-content: center;">
+                            <div style="font-size: 1.5rem; margin-right: 10px;">⚠️</div>
+                            <div>
+                                <strong>Duplicate Submission Detected</strong><br>
+                                {duplicate_message}
+                            </div>
+                        </div>
+                    </div>
+                ''', unsafe_allow_html=True)
+            else:
+                # VALIDATION CHECKS
+                validation_passed = True
+                error_messages = []
+                
+                # Check basic required fields
+                if not all([employee_name, employee_code, request_type != "Select Type", reason, approval_from != "Select Approval"]):
+                    validation_passed = False
+                    error_messages.append("Please complete all required fields")
+                
+                # Check date validity
+                if end_date < start_date:
+                    validation_passed = False
+                    error_messages.append("End date cannot be before start date")
+                
+                if not validation_passed:
+                    st.session_state.submission_in_progress = False
+                    error_html = "<div class='error-message'><div style='display: flex; align-items: center; justify-content: center;'><div style='font-size: 1.5rem; margin-right: 10px;'>⚠️</div><div><strong>Validation Error</strong><br>"
+                    for error in error_messages:
+                        error_html += f"{error}<br>"
+                    error_html += "</div></div></div>"
+                    st.markdown(error_html, unsafe_allow_html=True)
+                else:
+                    with st.spinner('Submitting your request...'):
+                        # Submit the request
+                        success, message = submit_wfh_request(
+                            employee_name, employee_code, request_type, 
+                            start_date, end_date, reason, approval_from
+                        )
+                        
+                        if success:
+                            # Store submission hash to prevent duplicates
+                            st.session_state.last_wfh_submission_hash = generate_wfh_hash(wfh_form_data)
+                            st.session_state.wfh_submission_timestamp = datetime.now()
+                            
+                            st.session_state.submission_in_progress = False
+                            st.markdown(f'''
+                                <div class="success-message">
+                                    <div style="font-size: 3rem; margin-bottom: 1rem;">✨</div>
+                                    <div style="font-size: 1.5rem; font-weight: 600; margin-bottom: 10px; color: #166534;">
+                                        Request Submitted Successfully!
+                                    </div>
+                                    <div style="color: #155724; margin-bottom: 15px;">
+                                        Your {request_type.lower()} request has been submitted successfully.
+                                    </div>
+                                    <div style="font-size: 0.95rem; color: #0f5132; opacity: 0.9;">
+                                        Request Type: {request_type}<br>
+                                        Duration: {(end_date - start_date).days + 1} day(s)<br>
+                                        Approval From: {approval_from}
+                                    </div>
+                                </div>
+                            ''', unsafe_allow_html=True)
+                            
+                            st.balloons()
+                            # Set flag to reset form on next render
+                            st.session_state.reset_form_tab4 = True
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.session_state.submission_in_progress = False
+                            st.markdown(f'''
+                                <div class="error-message">
+                                    <div style="display: flex; align-items: center; justify-content: center;">
+                                        <div style="font-size: 1.5rem; margin-right: 10px;">❌</div>
+                                        <div>
+                                            <strong>Submission Error</strong><br>
+                                            {message}<br>
+                                            Please try again or contact HR for assistance.
+                                        </div>
+                                    </div>
+                                </div>
+                            ''', unsafe_allow_html=True)
             
             # Check date validity
             if end_date < start_date:
