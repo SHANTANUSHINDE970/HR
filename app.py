@@ -1653,7 +1653,7 @@ def test_email_connection(test_recipient=None):
         
         test_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         body = f"""
-        This is a test email from VOLAR FASHION Leave Management System.
+        This is a test email from VOLAR FASHION Leave and WFH/out of office request.
         
         Test Details:
         - Time: {test_time}
@@ -2793,7 +2793,7 @@ with st.sidebar.expander("📖 Email Setup Guide"):
 st.markdown("""
     <div class="company-header floating-element">
         <h1>VOLAR FASHION</h1>
-        <h2>Leave Management System</h2>
+        <h2>Leave and WFH/out of office request</h2>
     </div>
 """, unsafe_allow_html=True)
 
