@@ -3408,8 +3408,10 @@ with tab1:
                                     st.session_state.generated_codes.clear()
                                     # Set flag to reset form on next render
                                     st.session_state.reset_form_tab1 = True
+                                    st.markdown('<meta http-equiv="refresh" content="2">', unsafe_allow_html=True)
                                     time.sleep(2)
                                     st.rerun()
+                                    
                                 else:
                                     # Show manual approval codes section
                                     st.session_state.cluster_codes = cluster_codes
@@ -3498,6 +3500,7 @@ with tab1:
                                     st.session_state.generated_codes.clear()
                                     # Set flag to reset form on next render
                                     st.session_state.reset_form_tab1 = True
+                                    st.markdown('<meta http-equiv="refresh" content="2">', unsafe_allow_html=True)
                                     time.sleep(2)
                                     st.rerun()
                                 
@@ -3690,6 +3693,7 @@ with tab2:
                         st.balloons()
                         # Set flag to reset form on next render
                         st.session_state.reset_form_tab2 = True
+                        st.markdown('<meta http-equiv="refresh" content="2">', unsafe_allow_html=True)
                         time.sleep(2)
                         st.rerun()
                     else:
@@ -4163,6 +4167,7 @@ with tab4:
                             st.balloons()
                             # Set flag to reset form on next render
                             st.session_state.reset_form_tab4 = True
+                            st.markdown('<meta http-equiv="refresh" content="2">', unsafe_allow_html=True)
                             time.sleep(2)
                             st.rerun()
                         else:
