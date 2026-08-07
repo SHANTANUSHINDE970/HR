@@ -593,7 +593,7 @@ HR_EMAIL = "hrvolarfashion@gmail.com"
 # Get this from the folder's URL: drive.google.com/drive/folders/THIS_PART
 # (this must be the ID, not the folder's display name - see get_drive_folder_id() below)
 # Leave as "" to instead read it from Streamlit secrets under [DRIVE] folder_id = "..."
-DRIVE_FOLDER_ID = ""
+DRIVE_FOLDER_ID = "1BtcoTsjXaZRwWBMSQjnLX4tF_bfECmSu"
 
 
 HOLIDAYS_2026 = [
