@@ -593,7 +593,7 @@ HR_EMAIL = "hrvolarfashion@gmail.com"
 # Get this from the folder's URL: drive.google.com/drive/folders/THIS_PART
 # (this must be the ID, not the folder's display name - see get_drive_folder_id() below)
 # Leave as "" to instead read it from Streamlit secrets under [DRIVE] folder_id = "..."
-DRIVE_FOLDER_ID = "1seERIZk5OY10GBMNPBVSGCLaI2jCvJl4"
+DRIVE_FOLDER_ID = "11l8b6qvn_2fiZMhfsn2pkB06HaPDzI2L"
 
 
 HOLIDAYS_2026 = [
@@ -661,6 +661,8 @@ if 'last_wfh_submission_hash' not in st.session_state: st.session_state.last_wfh
 if 'wfh_submission_timestamp' not in st.session_state: st.session_state.wfh_submission_timestamp = None
 if 'leave_file_uploader_key' not in st.session_state: st.session_state.leave_file_uploader_key = 0
 if 'wfh_file_uploader_key' not in st.session_state: st.session_state.wfh_file_uploader_key = 0
+if 'last_attachment_error' not in st.session_state: st.session_state.last_attachment_error = None
+if 'last_wfh_attachment_error' not in st.session_state: st.session_state.last_wfh_attachment_error = None
 
 
 # ============================================================
@@ -866,11 +868,25 @@ def setup_wfh_sheet():
 # ============================================================
 # GOOGLE DRIVE FILE UPLOAD (Medical Certificate / Prescription)
 # ============================================================
+def _clean_drive_folder_id(raw_value):
+    """
+    Handles the case where a full Drive URL was pasted instead of just the folder ID,
+    e.g. https://drive.google.com/drive/folders/1BtcoT...?usp=sharing -> 1BtcoT...
+    """
+    if not raw_value:
+        return ""
+    value = str(raw_value).strip()
+    if "/folders/" in value:
+        value = value.split("/folders/", 1)[1]
+        value = value.split("?", 1)[0].split("/", 1)[0]
+    return value.strip()
+
+
 def get_drive_folder_id():
     """Reads the target Google Drive folder ID - checks the DRIVE_FOLDER_ID constant
     above first, then falls back to Streamlit secrets."""
     if DRIVE_FOLDER_ID:
-        return DRIVE_FOLDER_ID.strip()
+        return _clean_drive_folder_id(DRIVE_FOLDER_ID)
     try:
         possible_sections = ["DRIVE", "drive", "GDRIVE", "gdrive"]
         possible_keys = ["folder_id", "FOLDER_ID", "drive_folder_id"]
@@ -881,7 +897,7 @@ def get_drive_folder_id():
                     try:
                         val = sec[k]
                         if val:
-                            return str(val).strip()
+                            return _clean_drive_folder_id(val)
                     except (KeyError, TypeError):
                         continue
         # Fallback: direct top-level key
@@ -889,7 +905,7 @@ def get_drive_folder_id():
             try:
                 val = st.secrets[k]
                 if val:
-                    return str(val).strip()
+                    return _clean_drive_folder_id(val)
             except (KeyError, TypeError):
                 continue
         return ""
@@ -2088,12 +2104,15 @@ def submit_wfh_request(employee_name, employee_code, employee_email,
                 upload_ok, upload_result = upload_file_to_drive(medical_doc, attachment_filename)
                 if upload_ok:
                     log_debug(f"WFH attachment uploaded to Drive as {attachment_filename}")
+                    st.session_state.last_wfh_attachment_error = None
                 else:
                     log_debug(f"WFH attachment upload failed: {upload_result}")
-                    st.warning("The attached document could not be uploaded automatically. Please share it with HR directly.")
+                    st.session_state.last_wfh_attachment_error = upload_result
             except Exception as att_err:
                 log_debug(f"WFH attachment upload exception: {traceback.format_exc()}")
-                st.warning("The attached document could not be uploaded automatically. Please share it with HR directly.")
+                st.session_state.last_wfh_attachment_error = str(att_err)
+        else:
+            st.session_state.last_wfh_attachment_error = None
 
         # Email HR + Sandip with approval code
         email_sent = False
@@ -2204,20 +2223,47 @@ if st.sidebar.button("Test Google Drive Connection"):
     with st.sidebar:
         with st.spinner("Testing Drive connection..."):
             drive_folder_id = get_drive_folder_id()
+            drive_creds_dict = get_google_credentials()
+            drive_service_email = drive_creds_dict.get("client_email", "(credentials not found)") if drive_creds_dict else "(credentials not found)"
+            st.code(
+                f"Folder ID in use: {drive_folder_id or '(none found)'}\n"
+                f"Service account:  {drive_service_email}\n"
+                f"Drive libs installed: {DRIVE_UPLOAD_LIBS_AVAILABLE}"
+            )
             if not drive_folder_id:
-                st.error("Drive folder ID not set. Add [DRIVE] folder_id to secrets.")
+                st.error("No folder ID found. Set DRIVE_FOLDER_ID in the code, or [DRIVE] folder_id in secrets.")
             elif not DRIVE_UPLOAD_LIBS_AVAILABLE:
-                st.error("google-api-python-client / google-auth not installed. See requirements.txt.")
+                st.error("google-api-python-client / google-auth not installed. Add to requirements.txt and redeploy.")
             else:
                 drive_service = get_drive_service()
                 if not drive_service:
                     st.error("Could not authenticate with Google Drive. Check credentials.")
                 else:
+                    folder_ok = False
                     try:
                         folder_info = drive_service.files().get(fileId=drive_folder_id, fields="id, name").execute()
-                        st.success(f"Connected! Folder: {folder_info.get('name')}")
-                    except Exception as drive_test_error:
-                        st.error(f"Could not access folder: {str(drive_test_error)}")
+                        st.info(f"Read access OK - folder found: {folder_info.get('name')}")
+                        folder_ok = True
+                    except Exception as drive_read_error:
+                        st.error(f"Cannot read the folder. Full error: {str(drive_read_error)}")
+                    if folder_ok:
+                        try:
+                            test_media = MediaIoBaseUpload(
+                                io.BytesIO(b"Volar Fashion Drive connection test"),
+                                mimetype="text/plain", resumable=False
+                            )
+                            test_file = drive_service.files().create(
+                                body={"name": "_volar_drive_connection_test.txt", "parents": [drive_folder_id]},
+                                media_body=test_media, fields="id"
+                            ).execute()
+                            drive_service.files().delete(fileId=test_file.get("id")).execute()
+                            st.success("Write test passed! Real uploads to this folder will work.")
+                        except Exception as drive_write_error:
+                            st.error(
+                                "Read works, but WRITE failed - this almost always means the folder "
+                                "is shared as Viewer instead of Editor. Full error: "
+                                f"{str(drive_write_error)}"
+                            )
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Test Email Configuration")
@@ -2314,6 +2360,13 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1: SUBMIT LEAVE APPLICATION
 # ============================================================
 with tab1:
+    if st.session_state.get('last_attachment_error'):
+        st.error(
+            "Your most recent attachment could not be uploaded to Google Drive "
+            "(the rest of the leave application still went through). "
+            f"Full error: {st.session_state.last_attachment_error}"
+        )
+
     if not email_config["configured"] or st.session_state.email_config_status == "Failed":
         st.markdown("""
             <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
@@ -2702,12 +2755,15 @@ with tab1:
                                         upload_ok, upload_result = upload_file_to_drive(leave_medical_doc, attachment_filename)
                                         if upload_ok:
                                             log_debug(f"Leave attachment uploaded to Drive as {attachment_filename}")
+                                            st.session_state.last_attachment_error = None
                                         else:
                                             log_debug(f"Leave attachment upload failed: {upload_result}")
-                                            st.warning("The attached document could not be uploaded automatically. Please share it with HR directly.")
+                                            st.session_state.last_attachment_error = upload_result
                                     except Exception as att_err:
                                         log_debug(f"Leave attachment upload exception: {traceback.format_exc()}")
-                                        st.warning("The attached document could not be uploaded automatically. Please share it with HR directly.")
+                                        st.session_state.last_attachment_error = str(att_err)
+                                else:
+                                    st.session_state.last_attachment_error = None
 
                                 email_sent = False
                                 email_error = ""
@@ -3001,6 +3057,13 @@ with tab3:
 # TAB 4: WFH / OUT OF OFFICE REQUEST (Submit)
 # ============================================================
 with tab4:
+    if st.session_state.get('last_wfh_attachment_error'):
+        st.error(
+            "Your most recent attachment could not be uploaded to Google Drive "
+            "(the rest of the WFH/OOO request still went through). "
+            f"Full error: {st.session_state.last_wfh_attachment_error}"
+        )
+
     st.markdown("""
         <div class="section-header">
             <div class="icon-badge" style="background: linear-gradient(135deg, #38d9a9 0%, #20c997 100%);">&#x1F3E0;</div>
