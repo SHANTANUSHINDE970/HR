@@ -13,7 +13,6 @@ import ssl
 from email.utils import formataddr
 import uuid
 import hashlib
-import pandas as pd
 from html import escape as html_escape
 
 # ============================================================
@@ -267,17 +266,6 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(33, 150, 243, 0.1);
     }
 
-    .thumbsup-box {
-        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-        border-left: 4px solid #4caf50;
-        color: #2e7d32;
-        padding: 1.75rem;
-        border-radius: 16px;
-        margin: 2rem 0;
-        box-shadow: 0 10px 30px rgba(76, 175, 80, 0.1);
-        text-align: center;
-    }
-
     .metric-card {
         background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
         padding: 1.5rem;
@@ -408,67 +396,6 @@ st.markdown("""
         border-radius: 4px;
     }
 
-    .thumbsup-emoji {
-        font-size: 3rem;
-        animation: thumbsupAnimation 2s ease-in-out infinite;
-    }
-
-    @keyframes thumbsupAnimation {
-        0%, 100% { transform: scale(1) rotate(0deg); }
-        25%       { transform: scale(1.1) rotate(-5deg); }
-        50%       { transform: scale(1.2) rotate(5deg); }
-        75%       { transform: scale(1.1) rotate(-5deg); }
-    }
-
-    /* ---------- Company Holidays table ---------- */
-    .holidays-table-wrapper {
-        display: flex;
-        justify-content: center;
-        width: 100%;
-        margin: 2rem 0;
-    }
-
-    .holidays-table-wrapper table {
-        border-collapse: collapse;
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        max-width: 800px;
-        background-color: var(--card-bg);
-    }
-
-    .holidays-table-wrapper th {
-        background: linear-gradient(135deg, #673ab7 0%, #9c27b0 100%);
-        color: white;
-        font-weight: 600;
-        padding: 1rem 1.5rem;
-        text-align: left;
-        font-size: 1rem;
-    }
-
-    .holidays-table-wrapper td {
-        padding: 1rem 1.5rem;
-        font-size: 0.95rem;
-        border-bottom: 1px solid var(--border-color);
-        color: var(--text-primary);
-    }
-
-    .holidays-table-wrapper tr:last-child td { border-bottom: none; }
-    .holidays-table-wrapper tr:nth-child(even) { background-color: rgba(103, 58, 183, 0.05); }
-    .holidays-table-wrapper tr:hover { background-color: rgba(103, 58, 183, 0.1); }
-
-    .day-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        font-weight: 500;
-    }
-    .day-saturday { background: rgba(33, 150, 243, 0.1); color: #2196f3; border: 1px solid rgba(33, 150, 243, 0.2); }
-    .day-sunday   { background: rgba(244, 67, 54, 0.1);  color: #f44336; border: 1px solid rgba(244, 67, 54, 0.2); }
-    .day-weekday  { background: rgba(76, 175, 80, 0.1);  color: #4caf50; border: 1px solid rgba(76, 175, 80, 0.2); }
-
     .debug-log {
         background: var(--bg-tertiary);
         border: 1px solid var(--border-color);
@@ -495,11 +422,18 @@ st.markdown("""
 HR_NAME  = "Hr"
 HR_EMAIL = "hr@anulachfashion.com"
 
-# ---------- WFH / Out-of-Office settings ----------
+# Leave types available in the leave application form
+LEAVE_TYPES = ["Select Type", "Full Day", "Half Day"]
+
+# ---------- Out-of-Office (OOO) settings ----------
 # The workbook is the same one used for leave ("Leave_Applications").
-# WFH / OOO requests are stored in their OWN worksheet (tab) inside that workbook.
+# OOO requests are stored in their OWN worksheet (tab) inside that workbook.
 # The worksheet is created automatically the first time it is needed.
+# (The worksheet name is unchanged so that existing OOO data stays in the same tab.)
 WFH_WORKSHEET_NAME = "anulach OOO and WFH"
+
+# The only request type available in the OOO form
+OOO_REQUEST_TYPE = "Out of Office for Official Work"
 
 WFH_HEADERS = [
     "Submission Date", "Employee Name", "Employee Code", "Employee Email",
@@ -507,29 +441,14 @@ WFH_HEADERS = [
     "Status", "Approval Date", "Approval Code",
 ]
 
-# Everyone listed here receives the WFH / OOO approval request (with the approval code).
-# HR then approves / rejects it from the "WFH / OOO Approval" tab.
+# Everyone listed here receives the OOO approval request (with the approval code).
+# HR then approves / rejects it from the "OOO Approval" tab.
 # Same recipient as the Volar app: HR at hrvolarfashion@gmail.com.
-# (Leave approvals above still go to HR_EMAIL; only WFH / OOO uses this list.)
+# (Leave approvals above still go to HR_EMAIL; only OOO uses this list.)
 WFH_APPROVAL_RECIPIENTS = {
     "HR": "hrvolarfashion@gmail.com",
     "Sandip": "sandip@ragunited.com",   # <- remove the leading # to also send to Sandip
 }
-
-HOLIDAYS_2026 = [
-    {"date": "01-Jan", "day": "Thursday",  "holiday": "New Year"},
-    {"date": "26-Jan", "day": "Monday",    "holiday": "Republic Day"},
-    {"date": "03-Mar", "day": "Tuesday",   "holiday": "Holi"},
-    {"date": "21-Mar", "day": "Saturday",  "holiday": "Ramzan Eid"},
-    {"date": "01-May", "day": "Friday",    "holiday": "Maharashtra Day"},
-    {"date": "15-Aug", "day": "Saturday",  "holiday": "Independence Day"},
-    {"date": "14-Sep", "day": "Monday",    "holiday": "Ganesh Chaturthi"},
-    {"date": "02-Oct", "day": "Friday",    "holiday": "Gandhi Jayanti"},
-    {"date": "21-Oct", "day": "Wednesday", "holiday": "Vijaydashmi"},
-    {"date": "08-Nov", "day": "Sunday",    "holiday": "Diwali"},
-    {"date": "11-Nov", "day": "Wednesday", "holiday": "Bhai Dooj"},
-    {"date": "25-Dec", "day": "Friday",    "holiday": "Christmas"},
-]
 
 # ============================================================
 # SESSION STATE INITIALISATION
@@ -564,7 +483,7 @@ if "submission_completed"   not in st.session_state: st.session_state.submission
 if "last_submission_hash"   not in st.session_state: st.session_state.last_submission_hash   = None
 if "submission_timestamp"   not in st.session_state: st.session_state.submission_timestamp   = None
 
-# WFH / OOO state (kept separate from the leave flags so the tabs never block each other)
+# OOO state (kept separate from the leave flags so the tabs never block each other)
 if "generated_wfh_codes"         not in st.session_state: st.session_state.generated_wfh_codes         = set()
 if "wfh_submission_in_progress"  not in st.session_state: st.session_state.wfh_submission_in_progress  = False
 if "wfh_decision_in_progress"    not in st.session_state: st.session_state.wfh_decision_in_progress    = False
@@ -701,6 +620,7 @@ def setup_wfh_sheet():
     """
     Connect to the 'anulach OOO and WFH' worksheet inside the SAME workbook
     ('Leave_Applications'). The worksheet is created automatically if it does not exist.
+    This worksheet stores the Out-of-Office (OOO) requests.
 
     Columns:
       1  Submission Date
@@ -716,7 +636,7 @@ def setup_wfh_sheet():
       11 Approval Code
     """
     try:
-        log_debug("Setting up WFH / OOO Google Sheets connection...")
+        log_debug("Setting up OOO Google Sheets connection...")
         SCOPES = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds_dict = get_google_credentials()
         if not creds_dict:
@@ -726,7 +646,7 @@ def setup_wfh_sheet():
             creds  = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPES)
             client = gspread.authorize(creds)
         except Exception as e:
-            log_debug(f"Error creating credentials for WFH sheet: {str(e)}")
+            log_debug(f"Error creating credentials for OOO sheet: {str(e)}")
             raise e
         WORKBOOK_NAME = "Leave_Applications"
         try:
@@ -747,9 +667,9 @@ def setup_wfh_sheet():
         try:
             if not sheet.row_values(1):
                 sheet.insert_row(WFH_HEADERS, index=1)
-                log_debug("Added headers to WFH / OOO worksheet")
+                log_debug("Added headers to OOO worksheet")
         except Exception as e:
-            log_debug(f"Warning: Could not check/add headers on WFH worksheet: {str(e)}")
+            log_debug(f"Warning: Could not check/add headers on OOO worksheet: {str(e)}")
         return sheet
     except Exception as e:
         log_debug(f"setup_wfh_sheet error: {traceback.format_exc()}")
@@ -991,14 +911,11 @@ def calculate_working_days(from_date, till_date):
 def calculate_days(from_date, till_date, leave_type):
     if leave_type == "Half Day":
         return 0.5
-    elif leave_type == "Early Exit":
-        return ""
-    else:
-        return calculate_working_days(from_date, till_date)
+    return calculate_working_days(from_date, till_date)
 
 
 # ============================================================
-# SHEET INSERT HELPER (used for both the leave sheet and the WFH / OOO sheet)
+# SHEET INSERT HELPER (used for both the leave sheet and the OOO sheet)
 # ============================================================
 def add_data_to_sheet(sheet, row_data):
     try:
@@ -1043,9 +960,7 @@ def send_approval_email(employee_name, superior_name, superior_email,
         clusters_html = ""
         for i, cluster in enumerate(clusters_data):
             days         = calculate_days(cluster["from_date"], cluster["till_date"], cluster["leave_type"])
-            days_display = ("N/A" if cluster["leave_type"] == "Early Exit"
-                            else ("0.5 day" if cluster["leave_type"] == "Half Day"
-                                  else f"{days} days"))
+            days_display = "0.5 day" if cluster["leave_type"] == "Half Day" else f"{days} days"
             clusters_html += f"""
             <div style="background:{'#f8f9ff' if i%2==0 else '#f0f2ff'};padding:15px;border-radius:8px;
                         margin:10px 0;border-left:4px solid #4dabf7;">
@@ -1237,10 +1152,10 @@ def check_duplicate_submission(form_data):
 
 
 # ============================================================
-# WFH / OOO — APPROVAL CODES (worksheet: "anulach OOO and WFH")
+# OOO — APPROVAL CODES (worksheet: "anulach OOO and WFH")
 # ============================================================
 def get_existing_wfh_codes_from_sheet(sheet):
-    """Read existing WFH / OOO approval codes from column 11 (index 10)."""
+    """Read existing OOO approval codes from column 11 (index 10)."""
     try:
         if not sheet:
             return set()
@@ -1250,15 +1165,15 @@ def get_existing_wfh_codes_from_sheet(sheet):
                 continue
             if len(row) > 10 and row[10]:
                 existing_codes.add(row[10])
-        log_debug(f"Found {len(existing_codes)} existing WFH / OOO codes")
+        log_debug(f"Found {len(existing_codes)} existing OOO codes")
         return existing_codes
     except Exception as e:
-        log_debug(f"Error getting existing WFH codes: {str(e)}")
+        log_debug(f"Error getting existing OOO codes: {str(e)}")
         return set()
 
 
 def generate_wfh_approval_code(sheet=None):
-    """Generate a unique 5-character approval code for a WFH / OOO request."""
+    """Generate a unique 5-character approval code for an OOO request."""
     alphabet = string.ascii_uppercase + string.digits
     alphabet = alphabet.replace("0", "").replace("O", "").replace("1", "").replace("I", "").replace("L", "")
     existing_codes = set()
@@ -1269,16 +1184,16 @@ def generate_wfh_approval_code(sheet=None):
         code = "".join(secrets.choice(alphabet) for _ in range(5))
         if code not in existing_codes:
             st.session_state.generated_wfh_codes.add(code)
-            log_debug(f"Generated unique WFH approval code: {code} (attempt {attempt+1})")
+            log_debug(f"Generated unique OOO approval code: {code} (attempt {attempt+1})")
             return code
-    raise RuntimeError("Could not generate a unique WFH approval code")
+    raise RuntimeError("Could not generate a unique OOO approval code")
 
 
 # ============================================================
-# WFH / OOO — EMAIL HELPERS
+# OOO — EMAIL HELPERS
 # ============================================================
 def _wfh_label(request_type):
-    return "WFH" if "Home" in request_type else "Out of Office"
+    return "Out of Office"
 
 
 def send_html_email_to_many(recipients, subject, html_body):
@@ -1339,7 +1254,7 @@ def _wfh_email_html(header_title, header_gradient, inner_html, sender_email):
 
 
 # ============================================================
-# WFH / OOO — EMAILS
+# OOO — EMAILS
 # ============================================================
 def send_wfh_approval_email(employee_name, employee_code, employee_email,
                             request_type, start_date, end_date, reason, approval_code):
@@ -1347,7 +1262,7 @@ def send_wfh_approval_email(employee_name, employee_code, employee_email,
     try:
         sender_email, sender_password, _ = get_email_credentials()
         if not sender_email or not sender_password:
-            log_debug("Email credentials not configured for WFH approval email")
+            log_debug("Email credentials not configured for OOO approval email")
             return False
         try:
             app_url = st.secrets.get("APP_URL", "https://your-anulach-leave-app.streamlit.app/")
@@ -1379,27 +1294,27 @@ def send_wfh_approval_email(employee_name, employee_code, employee_email,
                 {approval_code}
             </div>
             <div style="font-size:0.85rem;color:#856404;margin-top:8px;">
-                Use this code in the WFH / OOO Approval tab to approve or reject this request.
+                Use this code in the OOO Approval tab to approve or reject this request.
             </div>
         </div>
         <div class="instructions">
             <h4 style="margin-top:0;color:#2e7d32;">How to Approve / Reject:</h4>
             <ol>
                 <li>Visit: <a href="{app_url}">{app_url}</a></li>
-                <li>Click on the <strong>"WFH / OOO Approval"</strong> tab</li>
+                <li>Click on the <strong>"OOO Approval"</strong> tab</li>
                 <li>Enter the 5-character code:
                     <strong style="font-family:monospace;letter-spacing:2px;">{approval_code}</strong></li>
                 <li>Select <strong>Approve</strong> or <strong>Reject</strong></li>
-                <li>Click <strong>Submit WFH Decision</strong></li>
+                <li>Click <strong>Submit OOO Decision</strong></li>
             </ol>
             <p style="font-size:0.9rem;"><strong>Note:</strong> The employee will be notified automatically.</p>
         </div>"""
         html_body = _wfh_email_html(f"{label} Request - Approval Required",
                                     "linear-gradient(135deg,#20c997 0%,#0ca678 100%)",
                                     inner, sender_email)
-        subject = f"WFH/OOO Approval Required: {employee_name} [{approval_code}]"
+        subject = f"Out of Office Approval Required: {employee_name} [{approval_code}]"
         sent = send_html_email_to_many(list(WFH_APPROVAL_RECIPIENTS.values()), subject, html_body)
-        log_debug(f"WFH approval email sent to {sent} recipient(s)")
+        log_debug(f"OOO approval email sent to {sent} recipient(s)")
         return sent > 0
     except Exception:
         log_debug(f"Error in send_wfh_approval_email: {traceback.format_exc()}")
@@ -1408,7 +1323,7 @@ def send_wfh_approval_email(employee_name, employee_code, employee_email,
 
 def send_wfh_employee_confirmation_email(employee_name, employee_email, request_type,
                                          start_date, end_date, reason):
-    """Confirmation to the employee right after they submit a WFH / OOO request."""
+    """Confirmation to the employee right after they submit an OOO request."""
     try:
         if not employee_email or "@" not in employee_email:
             return False
@@ -1450,7 +1365,7 @@ def send_wfh_decision_email_to_employee(employee_name, employee_email, status,
     """Tell the employee whether HR approved or rejected the request."""
     try:
         if not employee_email or "@" not in employee_email:
-            log_debug("No valid employee email for WFH decision notification")
+            log_debug("No valid employee email for OOO decision notification")
             return False
         sender_email, sender_password, _ = get_email_credentials()
         if not sender_email or not sender_password:
@@ -1460,7 +1375,7 @@ def send_wfh_decision_email_to_employee(employee_name, employee_email, status,
         status_bg    = "#e8f5e9" if status == "Approved" else "#ffebee"
         status_icon  = "\u2705" if status == "Approved" else "\u274C"
         action_note  = (
-            "<p>Your request has been approved. Please stay reachable during your WFH / OOO period.</p>"
+            "<p>Your request has been approved. Please stay reachable during your Out of Office period.</p>"
             if status == "Approved"
             else "<p>Your request has been rejected. Please contact HR for more details.</p>"
         )
@@ -1501,7 +1416,7 @@ def send_wfh_decision_confirmation_to_hr(employee_name, employee_email, status,
         inner = f"""
         <p>Dear HR Team,</p>
         <div class="instructions">
-            <p>The WFH / OOO request for <strong>{html_escape(employee_name)}</strong>
+            <p>The Out of Office request for <strong>{html_escape(employee_name)}</strong>
                has been <strong>{status.lower()}</strong> successfully.</p>
         </div>
         <div class="info-box">
@@ -1514,10 +1429,10 @@ def send_wfh_decision_confirmation_to_hr(employee_name, employee_email, status,
             <p><strong>Code Used:</strong> {approval_code}</p>
             <p><strong>Decision Time:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         </div>"""
-        html_body = _wfh_email_html("WFH / OOO Decision Confirmed",
+        html_body = _wfh_email_html("Out of Office Decision Confirmed",
                                     "linear-gradient(135deg,#20c997 0%,#0ca678 100%)",
                                     inner, sender_email)
-        subject = f"WFH Decision Recorded: {employee_name} - {status}"
+        subject = f"Out of Office Decision Recorded: {employee_name} - {status}"
         return send_html_email_to_many(list(WFH_APPROVAL_RECIPIENTS.values()), subject, html_body) > 0
     except Exception:
         log_debug(f"Error in send_wfh_decision_confirmation_to_hr: {traceback.format_exc()}")
@@ -1525,7 +1440,7 @@ def send_wfh_decision_confirmation_to_hr(employee_name, employee_email, status,
 
 
 # ============================================================
-# WFH / OOO — STATUS UPDATE & SUBMISSION
+# OOO — STATUS UPDATE & SUBMISSION
 # ============================================================
 def update_wfh_status(sheet, approval_code, status):
     """
@@ -1547,7 +1462,7 @@ def update_wfh_status(sheet, approval_code, status):
                 start_date_str = row[5] if len(row) > 5 else ""
                 end_date_str   = row[6] if len(row) > 6 else ""
                 reason         = row[7] if len(row) > 7 else ""
-                log_debug(f"Updated WFH row {idx+1} to status: {status} for {employee_name}")
+                log_debug(f"Updated OOO row {idx+1} to status: {status} for {employee_name}")
 
                 if employee_email and "@" in employee_email:
                     send_wfh_decision_email_to_employee(employee_name, employee_email, status,
@@ -1555,11 +1470,11 @@ def update_wfh_status(sheet, approval_code, status):
                 send_wfh_decision_confirmation_to_hr(employee_name, employee_email, status,
                                                      request_type, approval_code)
                 return True
-        log_debug("No matching WFH record found for approval code")
+        log_debug("No matching OOO record found for approval code")
         return False
     except Exception as e:
-        st.error(f"Error updating WFH status: {str(e)}")
-        log_debug(f"Update WFH error: {traceback.format_exc()}")
+        st.error(f"Error updating OOO status: {str(e)}")
+        log_debug(f"Update OOO error: {traceback.format_exc()}")
         return False
 
 
@@ -1571,7 +1486,7 @@ def submit_wfh_request(employee_name, employee_code, employee_email,
     Returns (success, message, approval_email_sent, approval_code).
     """
     try:
-        log_debug(f"Submitting WFH / OOO request for: {employee_name}")
+        log_debug(f"Submitting OOO request for: {employee_name}")
         sheet = setup_wfh_sheet()
         if not sheet:
             return False, "Database connection failed. Please check your Google Sheets setup.", False, ""
@@ -1592,21 +1507,21 @@ def submit_wfh_request(employee_name, employee_code, employee_email,
         ]
         if not add_data_to_sheet(sheet, row_data):
             return False, "Error submitting request to the database.", False, ""
-        log_debug(f"WFH request written to '{WFH_WORKSHEET_NAME}' for {employee_name}")
+        log_debug(f"OOO request written to '{WFH_WORKSHEET_NAME}' for {employee_name}")
 
         email_sent = False
         try:
             email_sent = send_wfh_approval_email(employee_name, employee_code, employee_email,
                                                  request_type, start_date, end_date, reason, approval_code)
         except Exception as e:
-            log_debug(f"WFH approval email error: {str(e)}")
+            log_debug(f"OOO approval email error: {str(e)}")
 
         try:
             if employee_email and "@" in employee_email:
                 send_wfh_employee_confirmation_email(employee_name, employee_email,
                                                      request_type, start_date, end_date, reason)
         except Exception as e:
-            log_debug(f"WFH confirmation email error: {str(e)}")
+            log_debug(f"OOO confirmation email error: {str(e)}")
 
         if email_sent:
             return True, "Request submitted and approval email sent to HR.", True, approval_code
@@ -1617,7 +1532,7 @@ def submit_wfh_request(employee_name, employee_code, employee_email,
 
 
 # ============================================================
-# DUPLICATE SUBMISSION GUARD (WFH / OOO)
+# DUPLICATE SUBMISSION GUARD (OOO)
 # ============================================================
 def generate_wfh_hash(form_data):
     data_string = (f"{form_data['employee_name']}_{form_data['employee_code']}_"
@@ -1632,7 +1547,7 @@ def check_duplicate_wfh_submission(form_data):
         if st.session_state.wfh_submission_timestamp:
             time_diff = (datetime.now() - st.session_state.wfh_submission_timestamp).total_seconds()
             if time_diff < 30:
-                return True, "You have already submitted this WFH / Out of Office request. Please wait before submitting again."
+                return True, "You have already submitted this Out of Office request. Please wait before submitting again."
     return False, ""
 
 
@@ -1675,7 +1590,7 @@ if st.sidebar.button("Test Google Sheets Connection"):
             else:
                 st.error("Connection failed")
 
-if st.sidebar.button("Test WFH / OOO Sheet Connection"):
+if st.sidebar.button("Test OOO Sheet Connection"):
     with st.sidebar:
         with st.spinner("Testing..."):
             wfh_test_sheet = setup_wfh_sheet()
@@ -1762,16 +1677,15 @@ with st.sidebar.expander("Email Setup Guide"):
 st.markdown("""
     <div class="company-header floating-element">
         <h1>ANULACH FASHION</h1>
-        <h2>Leave and WFH / Out of office request</h2>
+        <h2>Leave and Out of Office request</h2>
     </div>
 """, unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "\U0001f4dd Submit Leave Application",
     "\u2705 Approval Portal",
-    "\U0001f4c5 Company Holidays",
-    "\U0001f3e0 WFH / Out of Office",
-    "\U0001f4f2 WFH / OOO Approval",
+    "\U0001f3e2 Out of Office",
+    "\U0001f4f2 OOO Approval",
 ])
 
 
@@ -1871,14 +1785,14 @@ with tab1:
             with c1:
                 leave_type = st.selectbox(
                     f"Leave Type - Period {i+1}",
-                    ["Select Type", "Full Day", "Half Day", "Early Exit"],
-                    index=0 if cluster["leave_type"] == "Select Type"
-                    else ["Select Type","Full Day","Half Day","Early Exit"].index(cluster["leave_type"]),
+                    LEAVE_TYPES,
+                    index=LEAVE_TYPES.index(cluster["leave_type"])
+                    if cluster["leave_type"] in LEAVE_TYPES else 0,
                     key=f"leave_type_cluster_{i}",
                 )
                 st.session_state.clusters[i]["leave_type"] = leave_type
             with c2:
-                if leave_type in ["Half Day", "Early Exit"]:
+                if leave_type == "Half Day":
                     sel = st.date_input(f"Date - Period {i+1}", value=cluster["from_date"],
                                         min_value=datetime.now().date() - timedelta(days=60),
                                         key=f"date_cluster_{i}")
@@ -1900,8 +1814,7 @@ with tab1:
                 if leave_type != "Select Type":
                     days = calculate_days(st.session_state.clusters[i]["from_date"],
                                          st.session_state.clusters[i]["till_date"], leave_type)
-                    d_str = ("N/A" if leave_type == "Early Exit"
-                             else "0.5" if leave_type == "Half Day" else str(days))
+                    d_str = "0.5" if leave_type == "Half Day" else str(days)
                     st.markdown(f"""
                         <div style="background:#e3f2fd;padding:10px;border-radius:8px;text-align:center;">
                             <div style="font-size:0.8rem;color:#1976d2;">Days</div>
@@ -1951,11 +1864,10 @@ with tab1:
 
         c1, c2 = st.columns([1, 1], gap="large")
         with c1:
-            leave_type = st.selectbox("Leave Type",
-                                      ["Select Type", "Full Day", "Half Day", "Early Exit"],
+            leave_type = st.selectbox("Leave Type", LEAVE_TYPES,
                                       index=0, key="leave_type_single")
         with c2:
-            if leave_type in ["Half Day", "Early Exit"]:
+            if leave_type == "Half Day":
                 sel = st.date_input("Date", value=st.session_state.clusters[0]["from_date"],
                                     min_value=datetime.now().date() - timedelta(days=60),
                                     key="date_single")
@@ -1977,16 +1889,7 @@ with tab1:
 
         if leave_type != "Select Type":
             no_of_days = calculate_days(from_date, till_date, leave_type)
-            if leave_type == "Early Exit":
-                st.markdown("""
-                    <div class="thumbsup-box floating-element">
-                        <div class="thumbsup-emoji">&#x1F44D;</div>
-                        <div style="font-size:1.1rem;font-weight:600;margin-bottom:8px;">Early Exit Request</div>
-                        <div style="font-size:0.95rem;">
-                            You are requesting to leave early. Only 1 Early Leave is permitted per month.
-                        </div>
-                    </div>""", unsafe_allow_html=True)
-            elif leave_type == "Half Day":
+            if leave_type == "Half Day":
                 st.markdown("""
                     <div class="metric-card floating-element">
                         <div style="font-size:0.9rem;color:#6b46c1;font-weight:500;">Leave Duration</div>
@@ -2166,8 +2069,7 @@ with tab1:
                                         code = cluster_codes[i]
                                         days = calculate_days(cluster["from_date"],
                                                               cluster["till_date"], cluster["leave_type"])
-                                        d_str = ("N/A" if cluster["leave_type"] == "Early Exit"
-                                                 else "0.5 day" if cluster["leave_type"] == "Half Day"
+                                        d_str = ("0.5 day" if cluster["leave_type"] == "Half Day"
                                                  else f"{days} days")
                                         st.markdown(f"""
                                             <div style="background:{'#f8f9ff' if i%2==0 else '#f0f2ff'};
@@ -2334,67 +2236,17 @@ with tab2:
 
 
 # ============================================================
-# TAB 3 — COMPANY HOLIDAYS
+# TAB 3 — OUT OF OFFICE REQUEST (SUBMIT)
 # ============================================================
 with tab3:
     st.markdown("""
         <div class="section-header">
             <div class="icon-badge"
-                 style="background:linear-gradient(135deg,#2196f3 0%,#03a9f4 100%);">&#x1F4C5;</div>
+                 style="background:linear-gradient(135deg,#38d9a9 0%,#20c997 100%);">&#x1F3E2;</div>
             <div>
-                <h3 style="margin:0;">Company Holidays 2026</h3>
-            </div>
-        </div>""", unsafe_allow_html=True)
-
-    st.markdown(f"""
-        <div style="text-align:center;margin:2rem 0;padding:1.5rem;
-                    background:var(--card-bg);border-radius:16px;
-                    border:1px solid var(--border-color);box-shadow:0 4px 12px var(--shadow-color);">
-            <div style="font-size:3rem;font-weight:700;
-                        background:linear-gradient(135deg,#673ab7 0%,#9c27b0 100%);
-                        -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
-                {len(HOLIDAYS_2026)}
-            </div>
-            <div style="font-size:1.2rem;font-weight:600;color:var(--text-primary);margin-top:0.5rem;">
-                Official Holidays in 2026
-            </div>
-        </div>""", unsafe_allow_html=True)
-
-    holidays_data = []
-    for holiday in HOLIDAYS_2026:
-        day_month = holiday["date"].split("-")
-        holidays_data.append({
-            "Date":    f"{day_month[0]} {day_month[1]} 2026",
-            "Day":     holiday["day"],
-            "Holiday": holiday["holiday"],
-        })
-
-    holidays_df = pd.DataFrame(holidays_data)
-
-    def style_day(val):
-        if val == "Saturday":
-            return f'<span class="day-badge day-saturday">{val}</span>'
-        elif val == "Sunday":
-            return f'<span class="day-badge day-sunday">{val}</span>'
-        return f'<span class="day-badge day-weekday">{val}</span>'
-
-    holidays_df["Day"] = holidays_df["Day"].apply(style_day)
-    holidays_html = holidays_df.to_html(escape=False, index=False)
-    st.markdown(f'<div class="holidays-table-wrapper">{holidays_html}</div>', unsafe_allow_html=True)
-
-
-# ============================================================
-# TAB 4 — WFH / OUT OF OFFICE REQUEST (SUBMIT)
-# ============================================================
-with tab4:
-    st.markdown("""
-        <div class="section-header">
-            <div class="icon-badge"
-                 style="background:linear-gradient(135deg,#38d9a9 0%,#20c997 100%);">&#x1F3E0;</div>
-            <div>
-                <h3 style="margin:0;">Work From Home / Out of Office Request</h3>
+                <h3 style="margin:0;">Out of Office Request</h3>
                 <p style="margin:5px 0 0 0;color:#718096;font-size:0.95rem;">
-                    Submit requests for remote work or official out-of-office assignments
+                    Submit requests for official out-of-office assignments
                 </p>
             </div>
         </div>""", unsafe_allow_html=True)
@@ -2409,7 +2261,7 @@ with tab4:
                     <strong style="color:#0d47a1;">How it works</strong><br>
                     <span style="color:#1565c0;font-size:0.95rem;">
                         Your request will be sent to <strong>HR</strong> for review.
-                        HR will approve or reject it in the WFH / OOO Approval tab,
+                        HR will approve or reject it in the OOO Approval tab,
                         and you will be notified by email.
                     </span>
                 </div>
@@ -2421,7 +2273,7 @@ with tab4:
         st.session_state["wfh_employee_name"]  = ""
         st.session_state["wfh_employee_code"]  = ""
         st.session_state["wfh_employee_email"] = ""
-        st.session_state["wfh_request_type"]   = "Select Type"
+        st.session_state["wfh_request_type"]   = OOO_REQUEST_TYPE
         st.session_state["wfh_start_date"]     = datetime.now().date()
         st.session_state["wfh_end_date"]       = datetime.now().date()
         st.session_state["wfh_reason"]         = ""
@@ -2448,15 +2300,15 @@ with tab4:
                 <div>
                     <h4 style="margin:0;">Request Type</h4>
                     <p style="margin:5px 0 0 0;color:#718096;font-size:0.9rem;">
-                        Select the type of request you are submitting
+                        Type of request you are submitting
                     </p>
                 </div>
             </div>
         </div>""", unsafe_allow_html=True)
 
     wfh_request_type = st.selectbox(
-        "Select Request Type",
-        ["Select Type", "Work From Home", "Out of Office for Official Work"],
+        "Request Type",
+        [OOO_REQUEST_TYPE],
         key="wfh_request_type",
     )
 
@@ -2547,9 +2399,8 @@ with tab4:
                 </div>""", unsafe_allow_html=True)
             else:
                 errors = []
-                if not all([wfh_employee_name, wfh_employee_code,
-                            wfh_request_type != "Select Type", wfh_reason]):
-                    errors.append("Please complete all required fields (Name, Code, Request Type, Reason)")
+                if not all([wfh_employee_name, wfh_employee_code, wfh_reason]):
+                    errors.append("Please complete all required fields (Name, Code, Reason)")
                 if wfh_employee_email and ("@" not in wfh_employee_email or "." not in wfh_employee_email):
                     errors.append("Please enter a valid employee email address")
                 if wfh_end_date < wfh_start_date:
@@ -2581,7 +2432,7 @@ with tab4:
                                         Request Submitted Successfully!
                                     </div>
                                     <div style="margin-bottom:15px;">
-                                        Your {wfh_request_type.lower()} request has been submitted
+                                        Your Out of Office request has been submitted
                                         and HR has been notified.
                                     </div>
                                     <div style="font-size:0.95rem;opacity:0.9;">
@@ -2616,17 +2467,17 @@ with tab4:
 
 
 # ============================================================
-# TAB 5 — WFH / OOO APPROVAL PORTAL (HR)
+# TAB 4 — OOO APPROVAL PORTAL (HR)
 # ============================================================
-with tab5:
+with tab4:
     st.markdown("""
         <div class="section-header">
             <div class="icon-badge"
                  style="background:linear-gradient(135deg,#20c997 0%,#0ca678 100%);">&#x1F4F2;</div>
             <div>
-                <h3 style="margin:0;">WFH / Out of Office Approval Portal</h3>
+                <h3 style="margin:0;">Out of Office Approval Portal</h3>
                 <p style="margin:5px 0 0 0;color:#718096;font-size:0.95rem;">
-                    For HR use only — approve or reject WFH / Out of Office requests
+                    For HR use only — approve or reject Out of Office requests
                 </p>
             </div>
         </div>""", unsafe_allow_html=True)
@@ -2640,7 +2491,7 @@ with tab5:
                 <div>
                     <strong style="color:#065f46;">HR Authentication Required</strong><br>
                     <span style="color:#047857;font-size:0.95rem;">
-                        Enter the 5-character WFH approval code received by email.
+                        Enter the 5-character OOO approval code received by email.
                         This portal is for <strong>HR use only</strong>. The employee is notified
                         automatically once a decision is submitted.
                     </span>
@@ -2660,7 +2511,7 @@ with tab5:
                 <div class="icon-badge"
                      style="background:linear-gradient(135deg,#20c997 0%,#0ca678 100%);">&#x1F511;</div>
                 <div>
-                    <h4 style="margin:0;">Enter WFH Approval Code</h4>
+                    <h4 style="margin:0;">Enter OOO Approval Code</h4>
                     <p style="margin:5px 0 0 0;color:#718096;font-size:0.9rem;">
                         The 5-character code was emailed to HR when the employee submitted the request
                     </p>
@@ -2669,10 +2520,10 @@ with tab5:
         </div>""", unsafe_allow_html=True)
 
     wfh_code_input = st.text_input(
-        "WFH Approval Code",
+        "OOO Approval Code",
         type="password",
-        placeholder="Enter 5-character WFH approval code",
-        help="Enter the unique code from the WFH approval email sent to HR",
+        placeholder="Enter 5-character OOO approval code",
+        help="Enter the unique code from the OOO approval email sent to HR",
         key="wfh_approval_code_input",
     )
 
@@ -2685,7 +2536,7 @@ with tab5:
                 <div>
                     <h4 style="margin:0;">HR Decision</h4>
                     <p style="margin:5px 0 0 0;color:#718096;font-size:0.9rem;">
-                        Select your decision for this WFH / Out of Office request
+                        Select your decision for this Out of Office request
                     </p>
                 </div>
             </div>
@@ -2700,7 +2551,7 @@ with tab5:
         wfh_decision_disabled = st.session_state.get("wfh_decision_in_progress", False)
         if wfh_decision_disabled:
             st.info("Processing your decision… Please wait.")
-        wfh_decision_button = st.button("Submit WFH Decision", type="primary",
+        wfh_decision_button = st.button("Submit OOO Decision", type="primary",
                                         use_container_width=True, key="submit_wfh_decision_button",
                                         disabled=wfh_decision_disabled)
 
@@ -2712,16 +2563,16 @@ with tab5:
                 st.session_state.wfh_decision_in_progress = False
                 st.markdown("""<div class="error-message">
                     <strong>&#x26A0;&#xFE0F; Missing Information</strong><br>
-                    Please enter the WFH approval code and select a decision.
+                    Please enter the OOO approval code and select a decision.
                 </div>""", unsafe_allow_html=True)
             elif len(wfh_code_clean) != 5:
                 st.session_state.wfh_decision_in_progress = False
                 st.markdown("""<div class="error-message">
                     <strong>&#x1F511; Invalid Code Format</strong><br>
-                    Please enter the exact 5-character WFH approval code from the email.
+                    Please enter the exact 5-character OOO approval code from the email.
                 </div>""", unsafe_allow_html=True)
             else:
-                with st.spinner("Processing your WFH decision…"):
+                with st.spinner("Processing your OOO decision…"):
                     wfh_sheet = setup_wfh_sheet()
                     if wfh_sheet:
                         wfh_status  = "Approved" if wfh_action == "Approve" else "Rejected"
@@ -2740,10 +2591,10 @@ with tab5:
                                     margin:2rem 0;text-align:center;">
                             <div style="font-size:3rem;margin-bottom:1rem;">{s_icon}</div>
                             <div style="font-size:1.5rem;font-weight:600;margin-bottom:10px;">
-                                WFH Decision Submitted Successfully!
+                                OOO Decision Submitted Successfully!
                             </div>
                             <div style="margin-bottom:15px;">
-                                The WFH / Out of Office request has been <strong>{wfh_status.lower()}</strong>.
+                                The Out of Office request has been <strong>{wfh_status.lower()}</strong>.
                             </div>
                             <div style="font-size:0.95rem;opacity:0.9;">
                                 &#x2709;&#xFE0F; The employee has been notified by email.<br>
@@ -2757,12 +2608,12 @@ with tab5:
                 elif wfh_success is None:
                     st.markdown("""<div class="error-message">
                         <strong>&#x1F4CA; Database Connection Error</strong><br>
-                        Could not connect to the WFH / OOO worksheet. Please try again later.
+                        Could not connect to the OOO worksheet. Please try again later.
                     </div>""", unsafe_allow_html=True)
                 else:
                     st.markdown("""<div class="error-message">
                         <strong>&#x1F510; Authentication Failed</strong><br>
-                        Invalid WFH code.<br>
+                        Invalid OOO code.<br>
                         Please check the code from the HR email or contact the system administrator.
                     </div>""", unsafe_allow_html=True)
 
